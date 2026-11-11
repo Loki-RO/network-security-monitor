@@ -5,7 +5,7 @@ from scapy.all import rdpcap, IP, TCP, UDP
 from collections import Counter, defaultdict
 
 # Lokasi file PCAP
-PCAP_FILE = "data/captures/slow-scan-test.pcap"
+PCAP_FILE = "data/captures/port-scan-test.pcap"
 LOG_FILE = Path("data/logs/detections.jsonl")
 
 def analyze_packets():
