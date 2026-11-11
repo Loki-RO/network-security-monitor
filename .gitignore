@@ -12,3 +12,7 @@ __pycache__/
 
 # Detection logs
 data/logs/*.jsonl
+
+# Generated metrics and visualizations
+data/metrics/traffic_features.csv
+data/metrics/*_comparison.png
