@@ -1,9 +1,12 @@
+import json
+from pathlib import Path
+from datetime import datetime, timezone
 from scapy.all import rdpcap, IP, TCP, UDP
 from collections import Counter, defaultdict
 
 # Lokasi file PCAP
 PCAP_FILE = "data/captures/slow-scan-test.pcap"
-
+LOG_FILE = Path("data/logs/detections.jsonl")
 
 def analyze_packets():
     # Membaca seluruh paket dari file PCAP
@@ -90,50 +93,89 @@ def analyze_packets():
         print(f"{flag}: {count} packets")
 
    
+    
     print("\n===== PORT SCAN DETECTION =====")
 
     THRESHOLD = 10
     WINDOW_SECONDS = 5
 
+    detection_events = []
+
     for ip, events in syn_scan_events.items():
 
-        # Mengurutkan event berdasarkan timestamp
         events.sort(key=lambda event: event[0])
 
         max_unique_ports = 0
         scanned_ports = set()
 
-        # Memeriksa setiap kemungkinan awal time window
+        max_window_start = None
+        max_window_end = None
+
         for start in range(len(events)):
 
             window_ports = set()
             start_time = events[start][0]
+            end_time = start_time
 
             for end in range(start, len(events)):
 
                 timestamp, destination_port = events[end]
 
-                # Keluar jika sudah melewati batas 5 detik
                 if timestamp - start_time > WINDOW_SECONDS:
                     break
 
                 window_ports.add(destination_port)
+                end_time = timestamp
 
-            # Menyimpan window dengan jumlah port unik terbanyak
             if len(window_ports) > max_unique_ports:
                 max_unique_ports = len(window_ports)
                 scanned_ports = window_ports.copy()
+                max_window_start = start_time
+                max_window_end = end_time
+
+        # Menentukan tingkat severity
+        if max_unique_ports >= THRESHOLD:
+            severity = "high"
+            message = "Possible port scanning detected"
+            print("[ALERT] Possible port scanning detected!")
+        else:
+            severity = "info"
+            message = "Port scan threshold not reached"
+            print("[INFO] Port scan threshold not reached.")
 
         print(f"Source IP: {ip}")
         print(f"Unique destination ports in {WINDOW_SECONDS}s: {max_unique_ports}")
-
-        if max_unique_ports >= THRESHOLD:
-            print("[ALERT] Possible port scanning detected!")
-        else:
-            print("[INFO] No port scanning detected.")
-
         print(f"Scanned ports: {sorted(scanned_ports)}")
         print("-" * 45)
+
+        # Membuat structured detection event
+        event = {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "source_ip": ip,
+            "detection_type": "port_scan",
+            "severity": severity,
+            "unique_ports": max_unique_ports,
+            "threshold": THRESHOLD,
+            "window_seconds": WINDOW_SECONDS,
+            "first_seen": max_window_start,
+            "last_seen": max_window_end,
+            "scanned_ports": sorted(scanned_ports),
+            "message": message
+        }
+
+        detection_events.append(event)
+
+    # Menyimpan event ke file JSON Lines
+    if detection_events:
+
+        LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
+
+        with LOG_FILE.open("a", encoding="utf-8") as file:
+
+            for event in detection_events:
+                file.write(json.dumps(event) + "\n")
+
+        print(f"\nDetection logs saved to: {LOG_FILE}")
 
 if __name__ == "__main__":
     analyze_packets()
