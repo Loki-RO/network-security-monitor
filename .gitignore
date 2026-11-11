@@ -1,1 +1,14 @@
+# Python virtual environment
+.venv/
+venv/
+
+# Python cache
+__pycache__/
+*.py[cod]
+
+# Captured traffic
+*.pcap
+*.pcapng
+
+# Detection logs
 data/logs/*.jsonl
